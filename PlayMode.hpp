@@ -22,7 +22,7 @@ struct PlayMode : Mode {
 	struct Button {
 		uint8_t downs = 0;
 		uint8_t pressed = 0;
-	} left, right, down, up;
+	} left, right, down, up, space, ef;
 
 	//local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
@@ -30,9 +30,13 @@ struct PlayMode : Mode {
 	std::vector<Scene::Transform*> dirt_trans;
 	std::vector<Scene::Transform*> tree_trans;
 	std::vector<Scene::Transform*> bush_trans;
+	std::vector<Scene::Transform*> tall_trans;
+	std::vector<Scene::Transform*> flower_trans;
 
 	std::array<int, 1764> height_grid;
 	std::array<int, 1600> content_grid ;
+
+	int found = 0;
 
 	glm::vec3 player_pos = glm::vec3(20.5f, 20.5f, 15.0f);
 	float z_vel = 0.0f;

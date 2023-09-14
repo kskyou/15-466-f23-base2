@@ -40,12 +40,16 @@ PlayMode::PlayMode() : scene(*hexapod_scene) {
 	//get pointers to leg for convenience:
 	for (auto &transform : scene.transforms) {
 		//std::cout << transform.name << "\n";
-		if (transform.name.substr(0, 4) == "Dirt"){
+		if (transform.name.substr(0, 5) == "Dirt."){
 			dirt_trans.push_back(&transform);
-		} else if (transform.name.substr(0, 4) == "Tree"){
+		} else if (transform.name.substr(0, 5) == "Tree."){
 			tree_trans.push_back(&transform);
-		} else if (transform.name.substr(0, 4) == "Bush"){
+		} else if (transform.name.substr(0, 5) == "Bush."){
 			bush_trans.push_back(&transform);
+		} else if (transform.name.substr(0, 5) == "Tall."){
+			tall_trans.push_back(&transform);
+		} else if (transform.name.substr(0, 5) == "Flowe"){
+			flower_trans.push_back(&transform);
 		}
 	}
 
@@ -54,10 +58,10 @@ PlayMode::PlayMode() : scene(*hexapod_scene) {
 
 	// Height generation via diamond-square algorithm
 	std::vector<std::vector<float>> height(65, std::vector<float> (65, 0));
-	height[0][0] = randf(); 
-	height[0][64] = randf(); 
-	height[64][0] =  randf(); 
-	height[64][64] = randf(); 
+	height[0][0] = 1.5 * randf(); 
+	height[0][64] = 1.5 * randf(); 
+	height[64][0] =  1.5 * randf(); 
+	height[64][64] = 1.5 * randf(); 
 
 	int step = 64;
 	int half = 32;
@@ -115,6 +119,33 @@ PlayMode::PlayMode() : scene(*hexapod_scene) {
 		biome_attractor.push_back(glm::vec2(randf() * 40.0f, randf() * 40.0f)); 
 	}
 
+
+	for (uint32_t i=0; i<10; i++){
+		bool found_placement = false;
+		for (uint32_t j=0; j<20; j++){
+			glm::vec2 attempt = glm::vec2(randf() * 40.0f, randf() * 40.0f); 
+			std::vector<std::pair<float, bool>> biome_distances;
+			for (uint32_t k=0; k<16; k++){
+				biome_distances.push_back(std::make_pair(glm::length(attempt - biome_attractor[k]), (k >= 6))); 
+			}
+			sort(biome_distances.begin(), biome_distances.end());
+			int xgrid = floor(attempt.x);
+			int ygrid = floor(attempt.y);
+			if (!biome_distances[0].second || !biome_distances[1].second  || randf() < 0.05f){
+				if (content_grid[40 * xgrid + ygrid] == 0){
+					found_placement = true;
+					content_grid[40 * xgrid + ygrid] = 5;
+					flower_trans[i]->position = glm::vec3(xgrid * 1.0f + 0.5f, ygrid * 1.0f + 0.5f, 0.1f + 0.5f * height_grid[42*(xgrid+1) + (ygrid+1)]);
+					flower_trans[i]->rotation = glm::angleAxis(glm::radians((biome_distances[3].second) * 90.0f),glm::vec3(0.0f, 0.0f, 1.0f));
+					break;
+				}
+			}
+		}
+		if (!found_placement){
+			flower_trans[i]->position = glm::vec3(20.0f, 20.0f, -10.0f);
+		}
+	}
+
 	for (uint32_t i=0; i<200; i++){
 		bool found_placement = false;
 		for (uint32_t j=0; j<4; j++){
@@ -165,6 +196,32 @@ PlayMode::PlayMode() : scene(*hexapod_scene) {
 		}
 	}
 
+	for (uint32_t i=0; i<200; i++){
+		bool found_placement = false;
+		for (uint32_t j=0; j<4; j++){
+			glm::vec2 attempt = glm::vec2(randf() * 40.0f, randf() * 40.0f); 
+			std::vector<std::pair<float, bool>> biome_distances;
+			for (uint32_t k=0; k<16; k++){
+				biome_distances.push_back(std::make_pair(glm::length(attempt - biome_attractor[k]), (k >= 6))); 
+			}
+			sort(biome_distances.begin(), biome_distances.end());
+			int xgrid = floor(attempt.x);
+			int ygrid = floor(attempt.y);
+			if (!biome_distances[0].second || !biome_distances[1].second  || randf() < 0.05f){
+				if (content_grid[40 * xgrid + ygrid] == 0){
+					found_placement = true;
+					content_grid[40 * xgrid + ygrid] = 3;
+					tall_trans[i]->position = glm::vec3(xgrid * 1.0f + 0.5f, ygrid * 1.0f + 0.5f, 0.5f * height_grid[42*(xgrid+1) + (ygrid+1)]);
+					tall_trans[i]->rotation = glm::angleAxis(glm::radians((biome_distances[2].second) * 90.0f),glm::vec3(0.0f, 0.0f, 1.0f));
+					break;
+				}
+			}
+		}
+		if (!found_placement){
+			tall_trans[i]->position = glm::vec3(20.0f, 20.0f, -10.0f);
+		}
+	}
+
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
@@ -197,6 +254,14 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			down.downs += 1;
 			down.pressed = true;
 			return true;
+		} else if (evt.key.keysym.sym == SDLK_SPACE) {
+			space.downs += 1;
+			space.pressed = true;
+			return true;
+		} else if (evt.key.keysym.sym == SDLK_f) {
+			ef.downs += 1;
+			ef.pressed = true;
+			return true;
 		}
 	} else if (evt.type == SDL_KEYUP) {
 		if (evt.key.keysym.sym == SDLK_a) {
@@ -210,6 +275,12 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			return true;
 		} else if (evt.key.keysym.sym == SDLK_s) {
 			down.pressed = false;
+			return true;
+		} else if (evt.key.keysym.sym == SDLK_SPACE) {
+			space.pressed = false;
+			return true;
+		} else if (evt.key.keysym.sym == SDLK_f) {
+			ef.pressed = false;
 			return true;
 		}
 	} else if (evt.type == SDL_MOUSEBUTTONDOWN) {
@@ -284,24 +355,37 @@ void PlayMode::update(float elapsed) {
 		float tile_height = height_grid[42*(xgrid+1)+(ygrid+1)] * 0.5f;
 		if (player_pos.z < tile_height){
 			z_vel = 0;
-			if (player_pos.z > tile_height - 0.1f){
-			} else {
-				if (player_pos.x - float(xgrid) < 0.1f){
-					player_move.x = (player_move.x > 0) ? 0 : player_move.x;
-				} else if (player_pos.x - float(xgrid) > 0.9f){
-					player_move.x = (player_move.x < 0) ? 0 : player_move.x;
-				} 
-				if (player_pos.y - float(ygrid) < 0.1f){
-					player_move.y = (player_move.y > 0) ? 0 : player_move.y;
-				} else if (player_pos.y - float(ygrid) > 0.9f){
-					player_move.y = (player_move.y < 0) ? 0 : player_move.y;
-				} 
+		}
+		if (player_pos.z < tile_height - 0.05f){
+			if (player_pos.x - float(xgrid) < 0.1f){
+				player_move.x = (player_move.x > 0) ? 0 : player_move.x;
+			} else if (player_pos.x - float(xgrid) > 0.9f){
+				player_move.x = (player_move.x < 0) ? 0 : player_move.x;
+			} 
+			if (player_pos.y - float(ygrid) < 0.1f){
+				player_move.y = (player_move.y > 0) ? 0 : player_move.y;
+			} else if (player_pos.y - float(ygrid) > 0.9f){
+				player_move.y = (player_move.y < 0) ? 0 : player_move.y;
+			} 
+		}
+
+		if (space.pressed && player_pos.z <tile_height + 0.1f && z_vel < 0.1f){
+			z_vel = 3.0f;
+		}
+
+		if (ef.pressed){
+			for (uint32_t i=0; i<10; i++){
+				if (glm::length(player_pos - flower_trans[i]->position) < 1.0f) {
+					found ++;
+					flower_trans[i]->position = glm::vec3(20.0f, 20.0f, -10.0f);
+				}
 			}
 		}
+		
 
 		player_pos += (player_move + glm::vec3(0.0f, 0.0f, z_vel)) * elapsed;
 
-		 std::cout << player_pos.x << " " << player_pos.y << "\n";
+		//std::cout << player_pos.x << " " << player_pos.y << "\n";
 
 		camera->transform->position = player_pos + glm::vec3(0.0f, 0.0f, 1.5f);
 		// move.x * frame_right + move.y * frame_forward;
@@ -348,14 +432,15 @@ void PlayMode::draw(glm::uvec2 const &drawable_size) {
 		));
 
 		constexpr float H = 0.09f;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
-			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-			glm::u8vec4(0x00, 0x00, 0x00, 0x00));
+		//lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		//	glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
+		//	glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+		//	glm::u8vec4(0x00, 0x00, 0x00, 0x00));
 		float ofs = 2.0f / drawable_size.y;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		lines.draw_text("Use WASD, space and mouse to move, and F to pick flowers. You have found " + std::to_string(found) + "/10 flowers",
 			glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
 			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 			glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+
 	}
 }
