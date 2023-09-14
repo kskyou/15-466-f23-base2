@@ -1,15 +1,15 @@
 # (TODO: your game's title)
 
-Author: (TODO: your name)
+Author: Kevin You
 
-Design: (TODO: In two sentences or fewer, describe what is new and interesting about your game.)
+Design: In this game, you are a drunk person wandering the landscape to pick flowers. The terrain is randomly generated.
 
 Screen Shot:
 
 ![Screen Shot](screenshot.png)
 
-How To Play:
+How To Play: WASD to move, mouse to scroll, space to jump, and F to pick flowers
 
-(TODO: describe the controls and (if needed) goals/strategy.)
+
 
 This game was built with [NEST](NEST.md).
