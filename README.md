@@ -1,4 +1,4 @@
-# (TODO: your game's title)
+# Picking Flowers
 
 Author: Kevin You
 
