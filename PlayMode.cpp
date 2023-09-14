@@ -52,17 +52,67 @@ PlayMode::PlayMode() : scene(*hexapod_scene) {
 	srand(time(NULL));
 	auto randf = [] () {return static_cast<float> (rand()) / (static_cast<float> (RAND_MAX));};
 
+	// Height generation via diamond-square algorithm
+	std::vector<std::vector<float>> height(65, std::vector<float> (65, 0));
+	height[0][0] = randf(); 
+	height[0][64] = randf(); 
+	height[64][0] =  randf(); 
+	height[64][64] = randf(); 
+
+	int step = 64;
+	int half = 32;
+	float eps = 1.0f; 
+	while (step >= 2){
+		for (int i=0; i<64/step; i++){
+			for (int j=0; j<64/step; j++){
+				height[half+i*step][half+j*step] = (height[i*step][j*step] + height[(i+1)*step][j*step] + height[i*step][(j+1)*step] + height[(i+1)*step][(j+1)*step]) / 4.0f + (randf() - 0.5f) * eps; 
+			}
+		}
+		for (int j=0; j<64/step; j++){
+			height[half+j*step][0]= (height[j*step][0] + height[(j+1)*step][0] + height[half+j*step][half]) / 3.0f + (randf() - 0.5f) * eps; 
+			height[half+j*step][64] = (height[j*step][64] + height[(j+1)*step][64] + height[half+j*step][64-half]) / 3.0f + (randf() - 0.5f) * eps; 
+		}
+		for (int j=0; j<64/step; j++){
+			height[0][half+j*step] = (height[0][j*step] + height[0][(j+1)*step] + height[half][half+j*step]) / 3.0f + (randf() - 0.5f) * eps; 
+			height[64][half+j*step] = (height[64][j*step] + height[64][(j+1)*step] + height[64-half][half+j*step]) / 3.0f + (randf() - 0.5f) * eps; 
+		}
+		for (int i=0; i<64/step-1; i++){
+			for (int j=0; j<64/step; j++){
+				height[half+half+i*step][half+j*step] = (height[half+i*step][half+j*step] + height[half+(i+1)*step][half+j*step] + height[half+half+i*step][j*step] + height[half+half+i*step][(j+1)*step]) / 4.0f + (randf() - 0.5f) * eps; 
+			}
+		}
+		for (int i=0; i<64/step; i++){
+			for (int j=0; j<64/step-1; j++){
+				height[half+i*step][half+half+j*step] = (height[i*step][half+half+j*step] + height[(i+1)*step][half+half+j*step] + height[half+i*step][half+j*step] + height[half+i*step][half+(j+1)*step]) / 4.0f + (randf() - 0.5f) * eps; 
+			}
+		}
+		step = step / 2;
+		half = half / 2;
+		eps = eps / 3;
+	}
+	for (int i=0; i<42; i++){
+		for (int j=0; j<42; j++){
+			if (i == 0 || j == 0 || i == 41 || j == 41){
+				height_grid[42*i + j] = 30;
+			} else {
+				height_grid[42*i + j] = floor(15.0f * height[i+10][j+10]);
+			}
+		}
+	}
+
+
 	for (uint32_t i=0; i<1600; i++){
-		dirt_trans[i]->position = glm::vec3((i / 40) * 1.0f + 0.5f, (i % 40) * 1.0f + 0.5f, 0.0f);
+		dirt_trans[i]->position = glm::vec3((i / 40) * 1.0f + 0.5f, (i % 40) * 1.0f + 0.5f, 0.5f * height_grid[(i / 40 + 1) * 42 + (i % 40 + 1)] - 0.5f);
 		int turn = 3 * (((i / 40) & 1) == 1) + (((i % 40) & 1) == 1) - 2 * (((i / 40) & 1) == 1) * (((i % 40) & 1) == 1);
 		dirt_trans[i]->rotation = glm::angleAxis(glm::radians(-turn * 90.0f),glm::vec3(0.0f, 0.0f, 1.0f));
 		content_grid[i] = 0;
 	}
 
+
+	// Funky biome generation I made
 	std::vector<glm::vec2> biome_attractor;
 	for (uint32_t k=0; k<16; k++){
 		biome_attractor.push_back(glm::vec2(randf() * 40.0f, randf() * 40.0f)); 
-		std::cout << biome_attractor[k].x << biome_attractor[k].y << "\n";
 	}
 
 	for (uint32_t i=0; i<200; i++){
@@ -71,22 +121,21 @@ PlayMode::PlayMode() : scene(*hexapod_scene) {
 			glm::vec2 attempt = glm::vec2(randf() * 40.0f, randf() * 40.0f); 
 			std::vector<std::pair<float, bool>> biome_distances;
 			for (uint32_t k=0; k<16; k++){
-				biome_distances.push_back(std::make_pair(glm::length(attempt - biome_attractor[k]), (k >= 10))); 
+				biome_distances.push_back(std::make_pair(glm::length(attempt - biome_attractor[k]), (k >= 6))); 
 			}
 			sort(biome_distances.begin(), biome_distances.end());
 			int xgrid = floor(attempt.x);
 			int ygrid = floor(attempt.y);
-			if ((biome_distances[0].first && biome_distances[1].second) || randf() < 0.05f){
-				if (content_grid[xgrid * 40 + ygrid] == 0){
+			if ((biome_distances[0].second && biome_distances[1].second) || randf() < 0.05f){
+				if (content_grid[40 * xgrid + ygrid] == 0){
 					found_placement = true;
-					content_grid[xgrid * 40 + ygrid] = 1;
-					tree_trans[i]->position = glm::vec3(xgrid * 1.0f + 0.5f, ygrid * 1.0f + 0.5f, 2.0f);
+					content_grid[40 * xgrid + ygrid] = 1;
+					tree_trans[i]->position = glm::vec3(xgrid * 1.0f + 0.5f, ygrid * 1.0f + 0.5f, 1.0f + 0.5f * biome_distances[2].second + 0.5f * height_grid[42*(xgrid+1) + (ygrid+1)]);
 					break;
 				}
 			}
 		}
 		if (!found_placement){
-			std::cout << i << "\n";
 			tree_trans[i]->position = glm::vec3(20.0f, 20.0f, -10.0f);
 		}
 	}
@@ -97,22 +146,21 @@ PlayMode::PlayMode() : scene(*hexapod_scene) {
 			glm::vec2 attempt = glm::vec2(randf() * 40.0f, randf() * 40.0f); 
 			std::vector<std::pair<float, bool>> biome_distances;
 			for (uint32_t k=0; k<16; k++){
-				biome_distances.push_back(std::make_pair(glm::length(attempt - biome_attractor[k]), (k >= 10))); 
+				biome_distances.push_back(std::make_pair(glm::length(attempt - biome_attractor[k]), (k >= 6))); 
 			}
 			sort(biome_distances.begin(), biome_distances.end());
 			int xgrid = floor(attempt.x);
 			int ygrid = floor(attempt.y);
-			if (biome_distances[0].first || randf() < 0.05f){
-				if (content_grid[xgrid * 40 + ygrid] == 0){
+			if (biome_distances[0].second || randf() < 0.05f){
+				if (content_grid[40 * xgrid + ygrid] == 0){
 					found_placement = true;
-					content_grid[xgrid * 40 + ygrid] = 1;
-					bush_trans[i]->position = glm::vec3(xgrid * 1.0f + 0.5f, ygrid * 1.0f + 0.5f, 0.5f);
+					content_grid[40 * xgrid + ygrid] = 2;
+					bush_trans[i]->position = glm::vec3(xgrid * 1.0f + 0.5f, ygrid * 1.0f + 0.5f, 0.5f * height_grid[42*(xgrid+1) + (ygrid+1)]);
 					break;
 				}
 			}
 		}
 		if (!found_placement){
-			std::cout << i << "\n";
 			bush_trans[i]->position = glm::vec3(20.0f, 20.0f, -10.0f);
 		}
 	}
@@ -120,6 +168,8 @@ PlayMode::PlayMode() : scene(*hexapod_scene) {
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
+
+	camera->transform->rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 }
 
 PlayMode::~PlayMode() {
@@ -173,6 +223,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 				evt.motion.xrel / float(window_size.y),
 				-evt.motion.yrel / float(window_size.y)
 			);
+
 			camera->transform->rotation = glm::normalize(
 				camera->transform->rotation
 				* glm::angleAxis(-motion.x * camera->fovy, glm::vec3(0.0f, 1.0f, 0.0f))
@@ -210,22 +261,50 @@ void PlayMode::update(float elapsed) {
 	{
 
 		//combine inputs into a move:
-		constexpr float PlayerSpeed = 30.0f;
+		constexpr float PlayerSpeed = 3.0f;
 		glm::vec2 move = glm::vec2(0.0f);
-		if (left.pressed && !right.pressed) move.x =-1.0f;
+		if (left.pressed && !right.pressed) move.x = -1.0f;
 		if (!left.pressed && right.pressed) move.x = 1.0f;
 		if (down.pressed && !up.pressed) move.y =-1.0f;
 		if (!down.pressed && up.pressed) move.y = 1.0f;
 
 		//make it so that moving diagonally doesn't go faster:
-		if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
-
 		glm::mat4x3 frame = camera->transform->make_local_to_parent();
 		glm::vec3 frame_right = frame[0];
-		//glm::vec3 up = frame[1];
 		glm::vec3 frame_forward = -frame[2];
 
-		camera->transform->position += move.x * frame_right + move.y * frame_forward;
+		glm::vec3 player_move = move.x * frame_right + move.y * frame_forward;
+		player_move.z = 0;
+		if (player_move != glm::vec3(0.0f)) player_move = glm::normalize(player_move) * PlayerSpeed;
+
+		z_vel -= 9.8 * elapsed;
+		int xgrid = floor(player_pos.x);
+		int ygrid = floor(player_pos.y);
+
+		float tile_height = height_grid[42*(xgrid+1)+(ygrid+1)] * 0.5f;
+		if (player_pos.z < tile_height){
+			z_vel = 0;
+			if (player_pos.z > tile_height - 0.1f){
+			} else {
+				if (player_pos.x - float(xgrid) < 0.1f){
+					player_move.x = (player_move.x > 0) ? 0 : player_move.x;
+				} else if (player_pos.x - float(xgrid) > 0.9f){
+					player_move.x = (player_move.x < 0) ? 0 : player_move.x;
+				} 
+				if (player_pos.y - float(ygrid) < 0.1f){
+					player_move.y = (player_move.y > 0) ? 0 : player_move.y;
+				} else if (player_pos.y - float(ygrid) > 0.9f){
+					player_move.y = (player_move.y < 0) ? 0 : player_move.y;
+				} 
+			}
+		}
+
+		player_pos += (player_move + glm::vec3(0.0f, 0.0f, z_vel)) * elapsed;
+
+		 std::cout << player_pos.x << " " << player_pos.y << "\n";
+
+		camera->transform->position = player_pos + glm::vec3(0.0f, 0.0f, 1.5f);
+		// move.x * frame_right + move.y * frame_forward;
 	}
 
 	//reset button press counters:

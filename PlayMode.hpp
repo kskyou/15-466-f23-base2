@@ -31,7 +31,11 @@ struct PlayMode : Mode {
 	std::vector<Scene::Transform*> tree_trans;
 	std::vector<Scene::Transform*> bush_trans;
 
-	std::array<int, 1600> content_grid;
+	std::array<int, 1764> height_grid;
+	std::array<int, 1600> content_grid ;
+
+	glm::vec3 player_pos = glm::vec3(20.5f, 20.5f, 15.0f);
+	float z_vel = 0.0f;
 	
 	//camera:
 	Scene::Camera *camera = nullptr;
