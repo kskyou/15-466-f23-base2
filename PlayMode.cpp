@@ -14,13 +14,13 @@
 
 GLuint hexapod_meshes_for_lit_color_texture_program = 0;
 Load< MeshBuffer > hexapod_meshes(LoadTagDefault, []() -> MeshBuffer const * {
-	MeshBuffer const *ret = new MeshBuffer(data_path("hexapod.pnct"));
+	MeshBuffer const *ret = new MeshBuffer(data_path("real.pnct"));
 	hexapod_meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
 	return ret;
 });
 
 Load< Scene > hexapod_scene(LoadTagDefault, []() -> Scene const * {
-	return new Scene(data_path("hexapod.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name){
+	return new Scene(data_path("real.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name){
 		Mesh const &mesh = hexapod_meshes->lookup(mesh_name);
 
 		scene.drawables.emplace_back(transform);
@@ -39,17 +39,83 @@ Load< Scene > hexapod_scene(LoadTagDefault, []() -> Scene const * {
 PlayMode::PlayMode() : scene(*hexapod_scene) {
 	//get pointers to leg for convenience:
 	for (auto &transform : scene.transforms) {
-		if (transform.name == "Hip.FL") hip = &transform;
-		else if (transform.name == "UpperLeg.FL") upper_leg = &transform;
-		else if (transform.name == "LowerLeg.FL") lower_leg = &transform;
+		//std::cout << transform.name << "\n";
+		if (transform.name.substr(0, 4) == "Dirt"){
+			dirt_trans.push_back(&transform);
+		} else if (transform.name.substr(0, 4) == "Tree"){
+			tree_trans.push_back(&transform);
+		} else if (transform.name.substr(0, 4) == "Bush"){
+			bush_trans.push_back(&transform);
+		}
 	}
-	if (hip == nullptr) throw std::runtime_error("Hip not found.");
-	if (upper_leg == nullptr) throw std::runtime_error("Upper leg not found.");
-	if (lower_leg == nullptr) throw std::runtime_error("Lower leg not found.");
 
-	hip_base_rotation = hip->rotation;
-	upper_leg_base_rotation = upper_leg->rotation;
-	lower_leg_base_rotation = lower_leg->rotation;
+	srand(time(NULL));
+	auto randf = [] () {return static_cast<float> (rand()) / (static_cast<float> (RAND_MAX));};
+
+	for (uint32_t i=0; i<1600; i++){
+		dirt_trans[i]->position = glm::vec3((i / 40) * 1.0f + 0.5f, (i % 40) * 1.0f + 0.5f, 0.0f);
+		int turn = 3 * (((i / 40) & 1) == 1) + (((i % 40) & 1) == 1) - 2 * (((i / 40) & 1) == 1) * (((i % 40) & 1) == 1);
+		dirt_trans[i]->rotation = glm::angleAxis(glm::radians(-turn * 90.0f),glm::vec3(0.0f, 0.0f, 1.0f));
+		content_grid[i] = 0;
+	}
+
+	std::vector<glm::vec2> biome_attractor;
+	for (uint32_t k=0; k<16; k++){
+		biome_attractor.push_back(glm::vec2(randf() * 40.0f, randf() * 40.0f)); 
+		std::cout << biome_attractor[k].x << biome_attractor[k].y << "\n";
+	}
+
+	for (uint32_t i=0; i<200; i++){
+		bool found_placement = false;
+		for (uint32_t j=0; j<4; j++){
+			glm::vec2 attempt = glm::vec2(randf() * 40.0f, randf() * 40.0f); 
+			std::vector<std::pair<float, bool>> biome_distances;
+			for (uint32_t k=0; k<16; k++){
+				biome_distances.push_back(std::make_pair(glm::length(attempt - biome_attractor[k]), (k >= 10))); 
+			}
+			sort(biome_distances.begin(), biome_distances.end());
+			int xgrid = floor(attempt.x);
+			int ygrid = floor(attempt.y);
+			if ((biome_distances[0].first && biome_distances[1].second) || randf() < 0.05f){
+				if (content_grid[xgrid * 40 + ygrid] == 0){
+					found_placement = true;
+					content_grid[xgrid * 40 + ygrid] = 1;
+					tree_trans[i]->position = glm::vec3(xgrid * 1.0f + 0.5f, ygrid * 1.0f + 0.5f, 2.0f);
+					break;
+				}
+			}
+		}
+		if (!found_placement){
+			std::cout << i << "\n";
+			tree_trans[i]->position = glm::vec3(20.0f, 20.0f, -10.0f);
+		}
+	}
+
+	for (uint32_t i=0; i<200; i++){
+		bool found_placement = false;
+		for (uint32_t j=0; j<4; j++){
+			glm::vec2 attempt = glm::vec2(randf() * 40.0f, randf() * 40.0f); 
+			std::vector<std::pair<float, bool>> biome_distances;
+			for (uint32_t k=0; k<16; k++){
+				biome_distances.push_back(std::make_pair(glm::length(attempt - biome_attractor[k]), (k >= 10))); 
+			}
+			sort(biome_distances.begin(), biome_distances.end());
+			int xgrid = floor(attempt.x);
+			int ygrid = floor(attempt.y);
+			if (biome_distances[0].first || randf() < 0.05f){
+				if (content_grid[xgrid * 40 + ygrid] == 0){
+					found_placement = true;
+					content_grid[xgrid * 40 + ygrid] = 1;
+					bush_trans[i]->position = glm::vec3(xgrid * 1.0f + 0.5f, ygrid * 1.0f + 0.5f, 0.5f);
+					break;
+				}
+			}
+		}
+		if (!found_placement){
+			std::cout << i << "\n";
+			bush_trans[i]->position = glm::vec3(20.0f, 20.0f, -10.0f);
+		}
+	}
 
 	//get pointer to camera for convenience:
 	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
@@ -122,22 +188,24 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 void PlayMode::update(float elapsed) {
 
 	//slowly rotates through [0,1):
-	wobble += elapsed / 10.0f;
-	wobble -= std::floor(wobble);
 
-	hip->rotation = hip_base_rotation * glm::angleAxis(
+	/*
+	hip->rotation = // hip_base_rotation * 
+		glm::angleAxis(
 		glm::radians(5.0f * std::sin(wobble * 2.0f * float(M_PI))),
 		glm::vec3(0.0f, 1.0f, 0.0f)
 	);
-	upper_leg->rotation = upper_leg_base_rotation * glm::angleAxis(
+	upper_leg->rotation = // upper_leg_base_rotation * 
+		glm::angleAxis(
 		glm::radians(7.0f * std::sin(wobble * 2.0f * 2.0f * float(M_PI))),
 		glm::vec3(0.0f, 0.0f, 1.0f)
 	);
-	lower_leg->rotation = lower_leg_base_rotation * glm::angleAxis(
+	lower_leg->rotation = // lower_leg_base_rotation * 
+		glm::angleAxis(
 		glm::radians(10.0f * std::sin(wobble * 3.0f * 2.0f * float(M_PI))),
 		glm::vec3(0.0f, 0.0f, 1.0f)
 	);
-
+	*/
 	//move camera:
 	{
 
